@@ -44,6 +44,12 @@ sqlalchemy==2.0.23
 asyncio-throttle==1.0.2
 aiofiles==23.2.1
 
+# Scheduling
+apscheduler==3.10.4
+
+# System monitoring
+psutil==5.9.6
+
 # Environment and configuration
 python-dotenv==1.0.0
 pydantic==2.5.0
