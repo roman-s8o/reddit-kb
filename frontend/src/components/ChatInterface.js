@@ -106,16 +106,17 @@ const ChatInterface = ({ systemStatus }) => {
         const botMessage = {
           id: Date.now() + 1,
           type: 'bot',
-          content: result.data.response,
+          content: result.data.answer,
           timestamp: result.data.timestamp,
-          sources: result.data.sources || [],
+          sources: result.data.references || [],
+          insights: result.data.insights || [],
           confidence: result.data.confidence
         };
 
         setMessages(prev => [...prev, botMessage]);
 
-        // Get new suggestions based on the query
-        const newSuggestions = await chatUtils.getSuggestions(inputMessage.trim());
+        // Get new suggestions based on current subreddit selection
+        const newSuggestions = await chatUtils.getSuggestions(selectedSubreddits.length > 0 ? selectedSubreddits : null);
         setSuggestions(newSuggestions);
       } else {
         throw new Error(result.error);
@@ -223,13 +224,41 @@ const ChatInterface = ({ systemStatus }) => {
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <RedditIcon sx={{ mr: 1, fontSize: 16 }} />
                     <Typography variant="caption">
-                      r/{source.metadata?.subreddit} • 
+                      r/{source.subreddit} • 
                       {source.source_type === 'post' ? 'Post' : 'Comment'} • 
-                      Score: {source.metadata?.score || 'N/A'}
+                      Similarity: {(source.similarity_score * 100).toFixed(0)}%
                     </Typography>
                   </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    {source.document.substring(0, 100)}...
+                  {source.title && (
+                    <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', mb: 0.5 }}>
+                      {source.title}
+                    </Typography>
+                  )}
+                  {source.url && (
+                    <Link href={source.url} target="_blank" rel="noopener" sx={{ fontSize: '0.75rem', display: 'block', mb: 0.5 }}>
+                      View on Reddit
+                    </Link>
+                  )}
+                </Card>
+              ))}
+            </Box>
+          )}
+
+          {message.insights && message.insights.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="caption" color="text.secondary">
+                Related Insights:
+              </Typography>
+              {message.insights.slice(0, 2).map((insight, index) => (
+                <Card key={index} variant="outlined" sx={{ mt: 1, p: 1, bgcolor: 'info.light', color: 'info.contrastText' }}>
+                  <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block' }}>
+                    {insight.topic} ({insight.document_count} docs)
+                  </Typography>
+                  <Typography variant="caption">
+                    Keywords: {insight.keywords.join(', ')}
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
+                    Relevance: {(insight.relevance * 100).toFixed(0)}%
                   </Typography>
                 </Card>
               ))}

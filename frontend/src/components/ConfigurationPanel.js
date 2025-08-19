@@ -32,16 +32,19 @@ import {
   Info as InfoIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';
-import { apiService, workflowUtils } from '../services/apiService';
+import { apiService, workflowUtils, orchestrationUtils } from '../services/apiService';
 
 const ConfigurationPanel = ({ systemStatus, onStatusUpdate }) => {
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [orchestrationHealth, setOrchestrationHealth] = useState(null);
+  const [systemHealth, setSystemHealth] = useState(null);
 
   useEffect(() => {
     loadConfiguration();
+    loadHealthStatus();
   }, []);
 
   const loadConfiguration = async () => {
@@ -58,11 +61,25 @@ const ConfigurationPanel = ({ systemStatus, onStatusUpdate }) => {
     }
   };
 
+  const loadHealthStatus = async () => {
+    try {
+      // Test orchestration API
+      const orchestrationResult = await orchestrationUtils.getSystemHealth();
+      if (orchestrationResult.success) {
+        setOrchestrationHealth(orchestrationResult.data);
+        setSystemHealth(orchestrationResult.data.system_status);
+      }
+    } catch (err) {
+      console.error('Error loading health status:', err);
+    }
+  };
+
   const testConnection = async () => {
     try {
       setTestingConnection(true);
       await apiService.getHealth();
       await onStatusUpdate();
+      await loadHealthStatus();
       setError(null);
     } catch (err) {
       setError('Connection test failed: ' + err.message);
@@ -119,6 +136,7 @@ const ConfigurationPanel = ({ systemStatus, onStatusUpdate }) => {
             startIcon={<RefreshIcon />}
             onClick={() => {
               loadConfiguration();
+              loadHealthStatus();
               onStatusUpdate();
             }}
           >
@@ -142,6 +160,119 @@ const ConfigurationPanel = ({ systemStatus, onStatusUpdate }) => {
       )}
 
       <Grid container spacing={3}>
+        {/* API Status */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                API Services Status
+              </Typography>
+              
+              <Grid container spacing={2}>
+                {/* Main API */}
+                <Grid item xs={12} md={4}>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <StorageIcon sx={{ mr: 1 }} />
+                      <Typography variant="subtitle1">Main API</Typography>
+                      {systemStatus ? (
+                        <Chip 
+                          label="Connected" 
+                          color="success" 
+                          size="small" 
+                          sx={{ ml: 'auto' }} 
+                        />
+                      ) : (
+                        <Chip 
+                          label="Disconnected" 
+                          color="error" 
+                          size="small" 
+                          sx={{ ml: 'auto' }} 
+                        />
+                      )}
+                    </Box>
+                    <Typography variant="body2" color="textSecondary">
+                      Port: 8000 • Data Collection & Insights
+                    </Typography>
+                  </Paper>
+                </Grid>
+
+                {/* Chatbot API */}
+                <Grid item xs={12} md={4}>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <ChatIcon sx={{ mr: 1 }} />
+                      <Typography variant="subtitle1">Chatbot API</Typography>
+                      <Chip 
+                        label="Available" 
+                        color="info" 
+                        size="small" 
+                        sx={{ ml: 'auto' }} 
+                      />
+                    </Box>
+                    <Typography variant="body2" color="textSecondary">
+                      Port: 8001 • Chat & Question Answering
+                    </Typography>
+                  </Paper>
+                </Grid>
+
+                {/* Orchestration API */}
+                <Grid item xs={12} md={4}>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <SettingsIcon sx={{ mr: 1 }} />
+                      <Typography variant="subtitle1">Orchestration API</Typography>
+                      {orchestrationHealth ? (
+                        <Chip 
+                          label="Connected" 
+                          color="success" 
+                          size="small" 
+                          sx={{ ml: 'auto' }} 
+                        />
+                      ) : (
+                        <Chip 
+                          label="Disconnected" 
+                          color="warning" 
+                          size="small" 
+                          sx={{ ml: 'auto' }} 
+                        />
+                      )}
+                    </Box>
+                    <Typography variant="body2" color="textSecondary">
+                      Port: 8002 • Workflow Management & Scheduling
+                    </Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              {/* Health Checks */}
+              {orchestrationHealth && (
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    System Health Checks
+                  </Typography>
+                  <Grid container spacing={1}>
+                    {Object.entries(orchestrationHealth.health_checks || {}).map(([check, status]) => (
+                      <Grid item xs={12} sm={6} md={3} key={check}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          {status ? (
+                            <CheckCircleIcon color="success" sx={{ mr: 1, fontSize: 16 }} />
+                          ) : (
+                            <ErrorIcon color="error" sx={{ mr: 1, fontSize: 16 }} />
+                          )}
+                          <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+                            {check.replace(/_/g, ' ')}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
         {/* System Status */}
         <Grid item xs={12}>
           <Card>

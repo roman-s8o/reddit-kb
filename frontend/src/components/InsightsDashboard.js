@@ -35,7 +35,7 @@ import {
   Visibility as VisibilityIcon
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer } from 'recharts';
-import { insightUtils, workflowUtils } from '../services/apiService';
+import { insightUtils, workflowUtils, orchestrationUtils } from '../services/apiService';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
@@ -47,9 +47,13 @@ const InsightsDashboard = ({ systemStatus }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCollecting, setIsCollecting] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [orchestrationStatus, setOrchestrationStatus] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [showOrchestration, setShowOrchestration] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
+    loadOrchestrationData();
   }, []);
 
   const loadDashboardData = async () => {
@@ -104,9 +108,76 @@ const InsightsDashboard = ({ systemStatus }) => {
     }
   };
 
+  const loadOrchestrationData = async () => {
+    try {
+      const [statusResult, jobsResult] = await Promise.all([
+        orchestrationUtils.getSchedulerStatus(),
+        orchestrationUtils.getJobs()
+      ]);
+      
+      if (statusResult.success) {
+        setOrchestrationStatus(statusResult.data);
+      }
+      
+      if (jobsResult.success) {
+        setJobs(jobsResult.data.jobs || []);
+      }
+    } catch (err) {
+      console.error('Error loading orchestration data:', err);
+    }
+  };
+
   const handleViewDetails = (insight) => {
     setSelectedInsight(insight);
     setDetailsOpen(true);
+  };
+
+  const handleTriggerJob = async (jobId) => {
+    try {
+      const result = await orchestrationUtils.triggerJob(jobId);
+      if (result.success) {
+        // Refresh orchestration data
+        loadOrchestrationData();
+        // Show success message or refresh dashboard
+        setTimeout(() => {
+          loadDashboardData();
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Error triggering job:', err);
+      setError('Failed to trigger job');
+    }
+  };
+
+  const handleToggleJob = async (jobId, enable) => {
+    try {
+      const result = await orchestrationUtils.toggleJob(jobId, enable);
+      if (result.success) {
+        loadOrchestrationData();
+      }
+    } catch (err) {
+      console.error('Error toggling job:', err);
+      setError('Failed to toggle job');
+    }
+  };
+
+  const handleExecuteWorkflow = async (workflowType) => {
+    try {
+      setIsCollecting(true);
+      const result = await orchestrationUtils.executeWorkflow(workflowType);
+      if (result.success) {
+        setTimeout(() => {
+          loadDashboardData();
+          loadOrchestrationData();
+        }, 3000);
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError('Failed to execute workflow');
+    } finally {
+      setIsCollecting(false);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -180,11 +251,11 @@ const InsightsDashboard = ({ systemStatus }) => {
           <Button
             variant="contained"
             startIcon={<CloudDownloadIcon />}
-            onClick={handleRunWorkflow}
+            onClick={() => handleExecuteWorkflow('batch')}
             disabled={isCollecting}
             color="primary"
           >
-            {isCollecting ? <CircularProgress size={20} /> : 'Run Full Workflow'}
+            {isCollecting ? <CircularProgress size={20} /> : 'Run Batch Workflow'}
           </Button>
           <Button
             variant="contained"
@@ -195,8 +266,124 @@ const InsightsDashboard = ({ systemStatus }) => {
           >
             {isGenerating ? <CircularProgress size={20} /> : 'Generate Insights'}
           </Button>
+          <Button
+            variant="outlined"
+            startIcon={<TimelineIcon />}
+            onClick={() => setShowOrchestration(!showOrchestration)}
+          >
+            {showOrchestration ? 'Hide' : 'Show'} Orchestration
+          </Button>
         </Box>
       </Box>
+
+      {/* Orchestration Panel */}
+      {showOrchestration && orchestrationStatus && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Workflow Orchestration
+          </Typography>
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid item xs={12} md={3}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography color="textSecondary" gutterBottom>
+                    Scheduler Status
+                  </Typography>
+                  <Typography variant="h6">
+                    {orchestrationStatus.running ? '🟢 Running' : '🔴 Stopped'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography color="textSecondary" gutterBottom>
+                    Active Jobs
+                  </Typography>
+                  <Typography variant="h6">
+                    {orchestrationStatus.active_jobs} / {orchestrationStatus.total_jobs}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography color="textSecondary" gutterBottom>
+                    Uptime
+                  </Typography>
+                  <Typography variant="h6">
+                    {Math.round(orchestrationStatus.uptime_seconds / 60)} min
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography color="textSecondary" gutterBottom>
+                    Last Health Check
+                  </Typography>
+                  <Typography variant="body2">
+                    {orchestrationStatus.last_health_check ? 
+                      formatDate(orchestrationStatus.last_health_check) : 
+                      'Never'
+                    }
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+          
+          {/* Jobs List */}
+          <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
+            Scheduled Jobs
+          </Typography>
+          <Grid container spacing={1}>
+            {jobs.slice(0, 6).map((job) => (
+              <Grid item xs={12} sm={6} md={4} key={job.id}>
+                <Card variant="outlined" size="small">
+                  <CardContent sx={{ p: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                        {job.name}
+                      </Typography>
+                      <Chip 
+                        label={job.enabled ? 'ON' : 'OFF'} 
+                        size="small" 
+                        color={job.enabled ? 'success' : 'default'}
+                        sx={{ fontSize: '0.7rem', height: 20 }}
+                      />
+                    </Box>
+                    <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
+                      Success: {job.success_count} | Errors: {job.error_count}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      <Button 
+                        size="small" 
+                        variant="outlined" 
+                        onClick={() => handleTriggerJob(job.id)}
+                        sx={{ fontSize: '0.7rem', py: 0.5 }}
+                      >
+                        Trigger
+                      </Button>
+                      <Button 
+                        size="small" 
+                        variant="text"
+                        onClick={() => handleToggleJob(job.id, !job.enabled)}
+                        sx={{ fontSize: '0.7rem', py: 0.5 }}
+                      >
+                        {job.enabled ? 'Disable' : 'Enable'}
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Paper>
+      )}
 
       {/* Status Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
