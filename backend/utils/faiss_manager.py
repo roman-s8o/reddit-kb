@@ -1,0 +1,211 @@
+"""
+FAISS Manager - Singleton for managing FAISS vector database
+"""
+import faiss
+import numpy as np
+import pickle
+import os
+from typing import List, Dict, Any, Optional
+from loguru import logger
+from config import settings
+
+
+class FAISSManager:
+    """Singleton manager for FAISS vector database."""
+    _instance = None
+    _index = None
+    _documents = []
+    _metadata = []
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(FAISSManager, cls).__new__(cls)
+        return cls._instance
+    
+    def __init__(self):
+        if not hasattr(self, '_initialized'):
+            self._initialized = True
+            self._dimension = 768  # Default embedding dimension
+            self._index_path = os.path.join(settings.vector_db_directory, "faiss_index.bin")
+            self._docs_path = os.path.join(settings.vector_db_directory, "documents.pkl")
+            self._metadata_path = os.path.join(settings.vector_db_directory, "metadata.pkl")
+    
+    def initialize(self, dimension: int = 768):
+        """Initialize FAISS index."""
+        logger.info(f"Initializing FAISS manager with dimension {dimension}")
+        self._dimension = dimension
+        
+        # Create directory if it doesn't exist
+        os.makedirs(settings.vector_db_directory, exist_ok=True)
+        logger.info(f"Created directory: {settings.vector_db_directory}")
+        
+        # Try to load existing index
+        if os.path.exists(self._index_path):
+            logger.info(f"Found existing index at {self._index_path}")
+            try:
+                self._index = faiss.read_index(self._index_path)
+                with open(self._docs_path, 'rb') as f:
+                    self._documents = pickle.load(f)
+                with open(self._metadata_path, 'rb') as f:
+                    self._metadata = pickle.load(f)
+                logger.info(f"Loaded existing FAISS index with {len(self._documents)} documents")
+            except Exception as e:
+                logger.warning(f"Failed to load existing index: {e}")
+                self._create_new_index()
+        else:
+            logger.info(f"No existing index found at {self._index_path}, creating new one")
+            self._create_new_index()
+            
+        # Ensure we have a valid index
+        if not self._index:
+            logger.error("No valid index after initialization, creating new one")
+            self._create_new_index()
+            
+        logger.info(f"FAISS initialization complete. Index: {self._index is not None}, Documents: {len(self._documents)}")
+    
+    def _create_new_index(self):
+        """Create a new FAISS index."""
+        logger.info(f"Creating new FAISS index with dimension {self._dimension}")
+        self._index = faiss.IndexFlatIP(self._dimension)  # Inner product for cosine similarity
+        self._documents = []
+        self._metadata = []
+        logger.info(f"Created new FAISS index with dimension {self._dimension}")
+    
+    def add_documents(self, documents: List[str], embeddings: List[List[float]], metadata: List[Dict[str, Any]]):
+        """Add documents to the index."""
+        if not documents or not embeddings:
+            logger.warning("No documents or embeddings provided")
+            return
+        
+        # Convert embeddings to numpy array
+        embeddings_array = np.array(embeddings, dtype=np.float32)
+        
+        # Normalize embeddings for cosine similarity
+        faiss.normalize_L2(embeddings_array)
+        
+        # Add to index
+        if not self._index:
+            logger.error("No FAISS index available")
+            return
+            
+        self._index.add(embeddings_array)
+        
+        # Store documents and metadata
+        self._documents.extend(documents)
+        self._metadata.extend(metadata)
+        
+        logger.info(f"Added {len(documents)} documents to FAISS index. Total: {len(self._documents)}")
+        
+        # Auto-save after adding documents
+        logger.info("Attempting to save FAISS index...")
+        self.save()
+    
+    def search(self, query_embedding: List[float], k: int = 5) -> List[Dict[str, Any]]:
+        """Search for similar documents."""
+        if not self._index or self._index.ntotal == 0:
+            return []
+        
+        # Convert query to numpy array and normalize
+        query_array = np.array([query_embedding], dtype=np.float32)
+        faiss.normalize_L2(query_array)
+        
+        # Search
+        distances, indices = self._index.search(query_array, min(k, self._index.ntotal))
+        
+        # Return results
+        results = []
+        for i, (distance, idx) in enumerate(zip(distances[0], indices[0])):
+            if idx < len(self._documents):
+                results.append({
+                    'document': self._documents[idx],
+                    'metadata': self._metadata[idx],
+                    'score': float(distance),
+                    'id': int(idx)
+                })
+        
+        return results
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get index statistics."""
+        if not self._index:
+            return {'total_documents': 0, 'dimension': 0}
+        
+        return {
+            'total_documents': self._index.ntotal,
+            'dimension': self._index.d,
+            'is_trained': self._index.is_trained
+        }
+    
+    def save(self):
+        """Save index and documents to disk."""
+        logger.info(f"Save called. Index exists: {self._index is not None}, Documents: {len(self._documents)}")
+        
+        if not self._index:
+            logger.warning("No index to save - attempting to create new index")
+            self._create_new_index()
+            if not self._index:
+                logger.error("Failed to create new index")
+                return
+        
+        logger.info(f"Attempting to save FAISS index with {len(self._documents)} documents")
+        logger.info(f"Index path: {self._index_path}")
+        logger.info(f"Docs path: {self._docs_path}")
+        logger.info(f"Metadata path: {self._metadata_path}")
+        
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self._index_path), exist_ok=True)
+            logger.info(f"Directory created/verified: {os.path.dirname(self._index_path)}")
+            
+            # Save FAISS index
+            logger.info("Saving FAISS index...")
+            faiss.write_index(self._index, self._index_path)
+            logger.info("FAISS index saved successfully")
+            
+            # Save documents
+            logger.info("Saving documents...")
+            with open(self._docs_path, 'wb') as f:
+                pickle.dump(self._documents, f)
+            logger.info("Documents saved successfully")
+            
+            # Save metadata
+            logger.info("Saving metadata...")
+            with open(self._metadata_path, 'wb') as f:
+                pickle.dump(self._metadata, f)
+            logger.info("Metadata saved successfully")
+            
+            logger.info(f"Successfully saved FAISS index with {len(self._documents)} documents")
+            
+            # Verify files were created
+            if os.path.exists(self._index_path):
+                logger.info(f"FAISS index file created: {os.path.getsize(self._index_path)} bytes")
+            else:
+                logger.error("FAISS index file was not created")
+                
+        except Exception as e:
+            logger.error(f"Failed to save FAISS index: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+        # Force save even if no documents
+        if len(self._documents) == 0:
+            logger.warning("No documents to save, but creating empty index file")
+            try:
+                # Create empty index file
+                with open(self._index_path, 'wb') as f:
+                    f.write(b'EMPTY_INDEX')
+                logger.info("Created empty index file")
+            except Exception as e:
+                logger.error(f"Failed to create empty index file: {e}")
+    
+    def reset(self):
+        """Reset the manager."""
+        self._index = None
+        self._documents = []
+        self._metadata = []
+        logger.info("FAISS manager reset")
+
+
+# Global instance
+faiss_manager = FAISSManager()
+

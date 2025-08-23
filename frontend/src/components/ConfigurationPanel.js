@@ -7,19 +7,13 @@ import {
   Grid,
   TextField,
   Button,
-  Switch,
-  FormControlLabel,
   Chip,
   Alert,
   CircularProgress,
-  Divider,
   List,
   ListItem,
   ListItemText,
-  ListItemIcon,
-  Paper,
-  IconButton,
-  Tooltip
+  Paper
 } from '@mui/material';
 import {
   Settings as SettingsIcon,
@@ -40,7 +34,6 @@ const ConfigurationPanel = ({ systemStatus, onStatusUpdate }) => {
   const [error, setError] = useState(null);
   const [testingConnection, setTestingConnection] = useState(false);
   const [orchestrationHealth, setOrchestrationHealth] = useState(null);
-  const [systemHealth, setSystemHealth] = useState(null);
 
   useEffect(() => {
     loadConfiguration();
@@ -67,7 +60,6 @@ const ConfigurationPanel = ({ systemStatus, onStatusUpdate }) => {
       const orchestrationResult = await orchestrationUtils.getSystemHealth();
       if (orchestrationResult.success) {
         setOrchestrationHealth(orchestrationResult.data);
-        setSystemHealth(orchestrationResult.data.system_status);
       }
     } catch (err) {
       console.error('Error loading health status:', err);
@@ -104,13 +96,7 @@ const ConfigurationPanel = ({ systemStatus, onStatusUpdate }) => {
     return 'info';
   };
 
-  const formatBytes = (bytes) => {
-    if (!bytes) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+
 
   if (loading) {
     return (
@@ -314,7 +300,7 @@ const ConfigurationPanel = ({ systemStatus, onStatusUpdate }) => {
                         sx={{ mt: 1 }}
                       />
                       <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                        Vector DB: {systemStatus.preprocessor?.chroma_connected ? 'Connected' : 'Not Connected'}
+                        Vector DB: {systemStatus.preprocessor?.vector_db_connected ? 'Connected' : 'Not Connected'}
                       </Typography>
                     </Paper>
                   </Grid>

@@ -1,0 +1,40 @@
+INFO:     Started server process [24892]
+INFO:     Waiting for application startup.
+2025-08-23 14:19:19.349 | INFO     | api.main:lifespan:71 - Starting Reddit Knowledge Base API...
+2025-08-23 14:19:19.350 | INFO     | agents.collector:initialize:74 - Reddit API client initialized successfully
+2025-08-23 14:19:19.350 | INFO     | utils.faiss_manager:initialize:35 - Initializing FAISS manager with dimension 768
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:initialize:40 - Created directory: ../data/vector_db
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:initialize:56 - No existing index found at ../data/vector_db/faiss_index.bin, creating new one
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:_create_new_index:68 - Creating new FAISS index with dimension 768
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:_create_new_index:72 - Created new FAISS index with dimension 768
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:initialize:64 - FAISS initialization complete. Index: True, Documents: 0
+2025-08-23 14:19:19.351 | INFO     | agents.preprocessor:initialize:313 - Connected to FAISS vector database
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:initialize:35 - Initializing FAISS manager with dimension 768
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:initialize:40 - Created directory: ../data/vector_db
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:initialize:56 - No existing index found at ../data/vector_db/faiss_index.bin, creating new one
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:_create_new_index:68 - Creating new FAISS index with dimension 768
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:_create_new_index:72 - Created new FAISS index with dimension 768
+2025-08-23 14:19:19.351 | INFO     | utils.faiss_manager:initialize:64 - FAISS initialization complete. Index: True, Documents: 0
+2025-08-23 14:19:19.352 | INFO     | agents.insight:initialize:47 - InsightAgent initialized successfully
+2025-08-23 14:19:19.352 | INFO     | utils.faiss_manager:initialize:35 - Initializing FAISS manager with dimension 768
+2025-08-23 14:19:19.352 | INFO     | utils.faiss_manager:initialize:40 - Created directory: ../data/vector_db
+2025-08-23 14:19:19.352 | INFO     | utils.faiss_manager:initialize:56 - No existing index found at ../data/vector_db/faiss_index.bin, creating new one
+2025-08-23 14:19:19.352 | INFO     | utils.faiss_manager:_create_new_index:68 - Creating new FAISS index with dimension 768
+2025-08-23 14:19:19.352 | INFO     | utils.faiss_manager:_create_new_index:72 - Created new FAISS index with dimension 768
+2025-08-23 14:19:19.352 | INFO     | utils.faiss_manager:initialize:64 - FAISS initialization complete. Index: True, Documents: 0
+2025-08-23 14:19:19.352 | INFO     | agents.chatbot:initialize:66 - Connected to FAISS database for chatbot
+2025-08-23 14:19:19.352 | INFO     | workflow.reddit_workflow:initialize_all_agents:440 - All agents initialized successfully
+2025-08-23 14:19:19.352 | INFO     | api.main:lifespan:74 - All agents initialized successfully
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-23 14:19:45.020 | INFO     | api.main:lifespan:82 - Shutting down Reddit Knowledge Base API...
+2025-08-23 14:19:45.021 | INFO     | agents.collector:close:383 - Reddit API client closed
+2025-08-23 14:19:45.028 | INFO     | agents.preprocessor:close:708 - Preprocessor agent closed
+2025-08-23 14:19:45.028 | INFO     | agents.insight:close:184 - InsightAgent closed
+2025-08-23 14:19:45.028 | INFO     | agents.chatbot:close:596 - Chatbot agent closed
+2025-08-23 14:19:45.028 | INFO     | workflow.reddit_workflow:close_all_agents:452 - All agents closed successfully
+2025-08-23 14:19:45.028 | INFO     | api.main:lifespan:85 - All agents closed successfully
+INFO:     Application shutdown complete.
+INFO:     Finished server process [24892]

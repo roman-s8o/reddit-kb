@@ -111,6 +111,23 @@ async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
+@app.get("/model/info", response_model=APIResponse)
+async def get_model_info():
+    """Get current model information."""
+    try:
+        return APIResponse(
+            success=True,
+            message="Model information retrieved successfully",
+            data={
+                "current_model": settings.ollama_model,
+                "embedding_model": settings.ollama_embedding_model,
+                "ollama_base_url": settings.ollama_base_url
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error getting model info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # System status endpoint
 @app.get("/status", response_model=APIResponse)

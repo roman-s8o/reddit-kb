@@ -40,6 +40,7 @@ const ChatInterface = ({ systemStatus }) => {
   const [availableSubreddits, setAvailableSubreddits] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [error, setError] = useState(null);
+  const [modelInfo, setModelInfo] = useState(null);
   const messagesEndRef = useRef(null);
 
   // Scroll to bottom when messages change
@@ -61,6 +62,14 @@ const ChatInterface = ({ systemStatus }) => {
       // Get configuration for available subreddits
       const config = await apiService.getConfiguration();
       setAvailableSubreddits(config.subreddits || []);
+
+      // Get model information
+      try {
+        const modelData = await apiService.getModelInfo();
+        setModelInfo(modelData.data);
+      } catch (modelErr) {
+        console.warn('Failed to load model info:', modelErr);
+      }
 
       // Get initial suggestions
       const suggestions = await chatUtils.getSuggestions();
@@ -420,3 +429,4 @@ const ChatInterface = ({ systemStatus }) => {
 };
 
 export default ChatInterface;
+

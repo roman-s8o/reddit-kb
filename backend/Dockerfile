@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p /app/data/chroma_db \
+RUN mkdir -p /app/data/vector_db \
     && mkdir -p /app/data \
     && mkdir -p /app/logs
 

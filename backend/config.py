@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     ollama_model: str = "llama2:7b"
     ollama_embedding_model: str = "nomic-embed-text"
     
-    # Chroma Database
-    chroma_persist_directory: str = "./data/chroma_db"
+    # Vector Database
+    vector_db_directory: str = "../data/vector_db"
     chroma_collection_name: str = "reddit_posts"
     
     # SQLite Database
@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: str = "./logs/app.log"
     
+    # Performance Settings
+    request_delay: float = 1.0
+    max_retries: int = 3
+    timeout: int = 30
+    
     @property
     def subreddit_list(self) -> List[str]:
         """Get subreddits as a list."""
@@ -49,6 +54,11 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
+
+
+# Global settings instance
+settings = Settings()
 
 
 # Global settings instance

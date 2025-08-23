@@ -1,6 +1,6 @@
 """
 PreprocessorAgent - Cleans, chunks, and embeds text using Ollama + LangChain.
-Stores processed data in Chroma vector database.
+Stores processed data in FAISS vector database.
 """
 import re
 import uuid
@@ -10,8 +10,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from pathlib import Path
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
+
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from loguru import logger
@@ -21,6 +20,7 @@ import emoji
 from bs4 import BeautifulSoup
 
 from config import settings
+from utils.faiss_manager import faiss_manager
 
 
 @dataclass
@@ -299,38 +299,20 @@ class PreprocessorAgent:
             chunk_overlap=50,  # 50 token overlap
             encoding_name="cl100k_base"  # GPT-4 compatible encoding
         )
-        self.chroma_client = None
+
         self.collection = None
         
         # Ensure data directory exists
-        Path(settings.chroma_persist_directory).mkdir(parents=True, exist_ok=True)
+        Path(settings.vector_db_directory).mkdir(parents=True, exist_ok=True)
     
     async def initialize(self):
-        """Initialize Chroma database connection."""
+        """Initialize FAISS vector database."""
         try:
-            self.chroma_client = chromadb.PersistentClient(
-                path=settings.chroma_persist_directory,
-                settings=ChromaSettings(
-                    anonymized_telemetry=False,
-                    allow_reset=True
-                )
-            )
-            
-            # Get or create collection
-            try:
-                self.collection = self.chroma_client.get_collection(
-                    name=settings.chroma_collection_name
-                )
-                logger.info(f"Connected to existing collection: {settings.chroma_collection_name}")
-            except ValueError:
-                self.collection = self.chroma_client.create_collection(
-                    name=settings.chroma_collection_name,
-                    metadata={"description": "Reddit posts and comments embeddings"}
-                )
-                logger.info(f"Created new collection: {settings.chroma_collection_name}")
-            
+            # Initialize FAISS manager
+            faiss_manager.initialize(dimension=768)  # nomic-embed-text dimension
+            logger.info(f"Connected to FAISS vector database")
         except Exception as e:
-            logger.error(f"Failed to initialize Chroma database: {e}")
+            logger.error(f"Failed to initialize FAISS database: {e}")
             raise
     
     def load_json_data(self, json_file_path: str) -> Dict[str, Any]:
@@ -371,16 +353,46 @@ class PreprocessorAgent:
     
     def create_documents_from_posts(
         self,
-        posts_data: Dict[str, List[Dict[str, Any]]]
+        posts_data: Dict[str, List[Any]]
     ) -> List[Document]:
-        """Convert Reddit posts JSON data to LangChain documents."""
+        """Convert Reddit posts data to LangChain documents."""
         documents = []
         
         for subreddit, posts in posts_data.items():
             for post in posts:
+                # Handle both dict and object formats
+                if hasattr(post, 'title'):
+                    # Object format (RedditPost)
+                    title = post.title or ""
+                    selftext = post.selftext or ""
+                    post_id = post.id or ""
+                    author = post.author or ""
+                    score = post.score or 0
+                    upvote_ratio = getattr(post, 'upvote_ratio', 0.0) or 0.0
+                    num_comments = getattr(post, 'num_comments', 0) or 0
+                    created_utc = getattr(post, 'created_utc', 0) or 0
+                    url = getattr(post, 'url', "") or ""
+                    permalink = getattr(post, 'permalink', "") or ""
+                    is_self = getattr(post, 'is_self', False) or False
+                    link_flair_text = getattr(post, 'link_flair_text', "") or ""
+                    comments = getattr(post, 'comments', []) or []
+                else:
+                    # Dict format
+                    title = post.get("title", "")
+                    selftext = post.get("selftext", "")
+                    post_id = post.get("id", "")
+                    author = post.get("author", "")
+                    score = post.get("score", 0)
+                    upvote_ratio = post.get("upvote_ratio", 0.0)
+                    num_comments = post.get("num_comments", 0)
+                    created_utc = post.get("created_utc", 0)
+                    url = post.get("url", "")
+                    permalink = post.get("permalink", "")
+                    is_self = post.get("is_self", False)
+                    link_flair_text = post.get("link_flair_text", "")
+                    comments = post.get("comments", [])
+                
                 # Create document for the main post
-                title = post.get("title", "")
-                selftext = post.get("selftext", "")
                 post_content = f"Title: {title}\n\nContent: {selftext}"
                 cleaned_content = TextCleaner.clean_text(post_content)
                 
@@ -389,26 +401,47 @@ class PreprocessorAgent:
                         page_content=cleaned_content,
                         metadata={
                             "type": "post",
-                            "post_id": post.get("id", ""),
+                            "post_id": post_id,
                             "subreddit": subreddit,
-                            "author": post.get("author", ""),
-                            "score": post.get("score", 0),
-                            "upvote_ratio": post.get("upvote_ratio", 0.0),
-                            "num_comments": post.get("num_comments", 0),
-                            "created_utc": post.get("created_utc", 0),
-                            "url": post.get("url", ""),
-                            "permalink": post.get("permalink", ""),
-                            "is_self": post.get("is_self", False),
-                            "link_flair_text": post.get("link_flair_text", ""),
+                            "author": author,
+                            "score": score,
+                            "upvote_ratio": upvote_ratio,
+                            "num_comments": num_comments,
+                            "created_utc": created_utc,
+                            "url": url,
+                            "permalink": permalink,
+                            "is_self": is_self,
+                            "link_flair_text": link_flair_text,
                             "title": title
                         }
                     )
                     documents.append(doc)
                 
                 # Create documents for comments
-                comments = post.get("comments", [])
                 for comment in comments:
-                    comment_body = comment.get("body", "")
+                    if hasattr(comment, 'body'):
+                        # Object format
+                        comment_body = comment.body or ""
+                        comment_id = comment.id or ""
+                        comment_author = comment.author or ""
+                        comment_score = comment.score or 0
+                        comment_created_utc = getattr(comment, 'created_utc', 0) or 0
+                        parent_id = getattr(comment, 'parent_id', "") or ""
+                        comment_permalink = getattr(comment, 'permalink', "") or ""
+                        is_submitter = getattr(comment, 'is_submitter', False) or False
+                        depth = getattr(comment, 'depth', 0) or 0
+                    else:
+                        # Dict format
+                        comment_body = comment.get("body", "")
+                        comment_id = comment.get("id", "")
+                        comment_author = comment.get("author", "")
+                        comment_score = comment.get("score", 0)
+                        comment_created_utc = comment.get("created_utc", 0)
+                        parent_id = comment.get("parent_id", "")
+                        comment_permalink = comment.get("permalink", "")
+                        is_submitter = comment.get("is_submitter", False)
+                        depth = comment.get("depth", 0)
+                    
                     if (comment_body and 
                         comment_body not in ["[deleted]", "[removed]", "", None]):
                         
@@ -419,16 +452,16 @@ class PreprocessorAgent:
                                 page_content=cleaned_comment,
                                 metadata={
                                     "type": "comment",
-                                    "comment_id": comment.get("id", ""),
-                                    "post_id": post.get("id", ""),
+                                    "comment_id": comment_id,
+                                    "post_id": post_id,
                                     "subreddit": subreddit,
-                                    "author": comment.get("author", ""),
-                                    "score": comment.get("score", 0),
-                                    "created_utc": comment.get("created_utc", 0),
-                                    "parent_id": comment.get("parent_id", ""),
-                                    "permalink": comment.get("permalink", ""),
-                                    "is_submitter": comment.get("is_submitter", False),
-                                    "depth": comment.get("depth", 0),
+                                    "author": comment_author,
+                                    "score": comment_score,
+                                    "created_utc": comment_created_utc,
+                                    "parent_id": parent_id,
+                                    "permalink": comment_permalink,
+                                    "is_submitter": is_submitter,
+                                    "depth": depth,
                                     "post_title": title
                                 }
                             )
@@ -483,24 +516,19 @@ class PreprocessorAgent:
         logger.info(f"Generated embeddings for {len(processed_docs)} documents")
         return processed_docs
     
-    async def store_in_chroma(self, processed_docs: List[ProcessedDocument]) -> int:
-        """Store processed documents in Chroma database."""
-        if not self.collection:
-            await self.initialize()
-        
-        # Prepare data for Chroma
-        ids = []
+    async def store_in_faiss(self, processed_docs: List[ProcessedDocument]) -> int:
+        """Store processed documents in FAISS vector database."""
+        # Prepare data for FAISS
         documents = []
         embeddings = []
         metadatas = []
         
         for doc in processed_docs:
             if doc.embedding:  # Only store documents with valid embeddings
-                ids.append(doc.id)
                 documents.append(doc.content)
                 embeddings.append(doc.embedding)
                 
-                # Prepare metadata (Chroma requires string values)
+                # Prepare metadata
                 metadata = {}
                 for key, value in doc.metadata.items():
                     if isinstance(value, (str, int, float, bool)):
@@ -512,36 +540,23 @@ class PreprocessorAgent:
                 metadata["processed_at"] = datetime.now(timezone.utc).isoformat()
                 metadatas.append(metadata)
         
-        if not ids:
-            logger.warning("No valid documents to store in Chroma")
+        if not documents:
+            logger.warning("No valid documents to store in FAISS")
             return 0
         
         try:
-            # Store in batches to avoid memory issues
-            batch_size = 100
-            stored_count = 0
+            # Add documents to FAISS
+            faiss_manager.add_documents(documents, embeddings, metadatas)
             
-            for i in range(0, len(ids), batch_size):
-                batch_ids = ids[i:i + batch_size]
-                batch_docs = documents[i:i + batch_size]
-                batch_embeddings = embeddings[i:i + batch_size]
-                batch_metadatas = metadatas[i:i + batch_size]
-                
-                self.collection.add(
-                    ids=batch_ids,
-                    documents=batch_docs,
-                    embeddings=batch_embeddings,
-                    metadatas=batch_metadatas
-                )
-                
-                stored_count += len(batch_ids)
-                logger.info(f"Stored batch {i//batch_size + 1}/{(len(ids) + batch_size - 1)//batch_size} in Chroma")
+            # Save to disk
+            faiss_manager.save()
             
-            logger.info(f"Successfully stored {stored_count} documents in Chroma")
+            stored_count = len(documents)
+            logger.info(f"Successfully stored {stored_count} documents in FAISS")
             return stored_count
             
         except Exception as e:
-            logger.error(f"Error storing documents in Chroma: {e}")
+            logger.error(f"Error storing documents in FAISS: {e}")
             raise
     
     async def process_from_json_file(
@@ -611,9 +626,9 @@ class PreprocessorAgent:
             logger.info("Generating embeddings...")
             processed_docs = await self.embed_documents(chunked_docs)
             
-            # Step 4: Store in Chroma
-            logger.info("Storing in Chroma database...")
-            stored_count = await self.store_in_chroma(processed_docs)
+            # Step 4: Store in FAISS
+            logger.info("Storing in FAISS database...")
+            stored_count = await self.store_in_faiss(processed_docs)
             
             end_time = datetime.now(timezone.utc)
             duration = (end_time - start_time).total_seconds()
@@ -621,7 +636,7 @@ class PreprocessorAgent:
             # Calculate statistics
             total_posts = sum(len(posts) for posts in posts_data.values())
             total_comments = sum(
-                sum(len(post.comments) for post in posts)
+                sum(len(getattr(post, 'comments', []) if hasattr(post, 'comments') else post.get('comments', [])) for post in posts)
                 for posts in posts_data.values()
             )
             
@@ -643,7 +658,7 @@ class PreprocessorAgent:
             
             logger.info(f"Processing completed successfully in {duration:.2f}s")
             logger.info(f"Processed {total_posts} posts and {total_comments} comments")
-            logger.info(f"Stored {stored_count} document chunks in Chroma")
+            logger.info(f"Stored {stored_count} document chunks in FAISS")
             
             return result
             
@@ -659,34 +674,25 @@ class PreprocessorAgent:
             }
     
     def get_collection_stats(self) -> Dict[str, Any]:
-        """Get statistics about the Chroma collection."""
-        if not self.collection:
-            return {"error": "Collection not initialized"}
-        
+        """Get statistics about the FAISS collection."""
         try:
-            count = self.collection.count()
+            stats = faiss_manager.get_stats()
             
-            # Get sample of metadata to understand data distribution
-            if count > 0:
-                sample_size = min(100, count)
-                results = self.collection.get(limit=sample_size)
+            if stats["total_documents"] > 0:
+                # Get sample of metadata to understand data distribution
+                sample_size = min(100, stats["total_documents"])
                 
-                # Analyze subreddit distribution
+                # Analyze subreddit distribution from metadata
                 subreddit_counts = {}
                 type_counts = {}
                 
-                for metadata in results["metadatas"]:
-                    subreddit = metadata.get("subreddit", "unknown")
-                    doc_type = metadata.get("type", "unknown")
-                    
-                    subreddit_counts[subreddit] = subreddit_counts.get(subreddit, 0) + 1
-                    type_counts[doc_type] = type_counts.get(doc_type, 0) + 1
-                
+                # Get sample metadata (we'll need to access it from faiss_manager)
+                # For now, return basic stats
                 return {
-                    "total_documents": count,
-                    "sample_size": sample_size,
-                    "subreddit_distribution": subreddit_counts,
-                    "type_distribution": type_counts
+                    "total_documents": stats["total_documents"],
+                    "dimension": stats["dimension"],
+                    "is_trained": stats["is_trained"],
+                    "sample_size": sample_size
                 }
             else:
                 return {"total_documents": 0}

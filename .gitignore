@@ -41,8 +41,8 @@ logs/
 *.db
 *.sqlite3
 
-# Chroma database
-chroma_db/
+# Vector database
+vector_db/
 
 # Node.js
 node_modules/

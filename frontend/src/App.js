@@ -78,6 +78,15 @@ function App() {
     try {
       setRefreshing(true);
       const status = await apiService.getSystemStatus();
+      
+      // Get model information
+      try {
+        const modelInfo = await apiService.getModelInfo();
+        status.model_info = modelInfo.data;
+      } catch (modelErr) {
+        console.warn('Failed to load model info:', modelErr);
+      }
+      
       setSystemStatus(status);
       setError(null);
     } catch (err) {
@@ -132,6 +141,9 @@ function App() {
                 `Ready • ${systemStatus.chatbot?.knowledge_base?.total_documents || 0} docs` :
                 'Connecting...'
               }
+            </Typography>
+            <Typography variant="caption" sx={{ mr: 2, opacity: 0.7 }}>
+              {systemStatus?.model_info?.current_model || 'Model: Unknown'}
             </Typography>
           </Toolbar>
         </AppBar>

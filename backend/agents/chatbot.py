@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 
-import chromadb
+from utils.faiss_manager import faiss_manager
 import numpy as np
 from loguru import logger
 import httpx
@@ -60,17 +60,12 @@ Guidelines:
 6. Be objective and present different viewpoints when they exist in the data"""
     
     async def initialize(self):
-        """Initialize Chroma database connection."""
+        """Initialize FAISS database connection."""
         try:
-            self.chroma_client = chromadb.PersistentClient(
-                path=settings.chroma_persist_directory
-            )
-            self.collection = self.chroma_client.get_collection(
-                name=settings.chroma_collection_name
-            )
-            logger.info("Connected to Chroma collection for chatbot")
+            faiss_manager.initialize(dimension=768)
+            logger.info("Connected to FAISS database for chatbot")
         except Exception as e:
-            logger.error(f"Failed to initialize Chroma connection: {e}")
+            logger.error(f"Failed to initialize FAISS connection: {e}")
             raise
     
     async def retrieve_relevant_documents(

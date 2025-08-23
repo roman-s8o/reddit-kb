@@ -1,65 +1,49 @@
 import axios from 'axios';
 
-// API endpoints for different services
-const API_ENDPOINTS = {
-  main: process.env.REACT_APP_MAIN_API_URL || 'http://localhost:8000',
-  chatbot: process.env.REACT_APP_CHATBOT_API_URL || 'http://localhost:8001', 
-  orchestration: process.env.REACT_APP_ORCHESTRATION_API_URL || 'http://localhost:8002'
-};
+// Single API endpoint - just the main API
+const API_BASE_URL = process.env.REACT_APP_MAIN_API_URL || 'http://localhost:8000';
 
-// Create axios instances for different APIs
-const createApiInstance = (baseURL, timeout = 30000) => {
-  const instance = axios.create({
-    baseURL,
-    timeout,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-  
-  // Add request interceptor for logging
-  instance.interceptors.request.use(
-    (config) => {
-      console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
-      return config;
-    },
-    (error) => {
-      console.error('API Request Error:', error);
-      return Promise.reject(error);
+// Create axios instance
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add request interceptor for logging
+api.interceptors.request.use(
+  (config) => {
+    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('API Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  (response) => {
+    return response.data;
+  },
+  (error) => {
+    console.error('API Response Error:', error);
+    
+    if (error.response) {
+      // Server responded with error status
+      throw new Error(error.response.data?.message || error.response.data?.detail || 'Server error');
+    } else if (error.request) {
+      // Request was made but no response received
+      throw new Error('No response from server. Please check if the API is running.');
+    } else {
+      // Something else happened
+      throw new Error(error.message || 'Unknown error occurred');
     }
-  );
-  
-  // Add response interceptor for error handling
-  instance.interceptors.response.use(
-    (response) => {
-      return response.data;
-    },
-    (error) => {
-      console.error('API Response Error:', error);
-      
-      if (error.response) {
-        // Server responded with error status
-        throw new Error(error.response.data?.message || error.response.data?.detail || 'Server error');
-      } else if (error.request) {
-        // Request was made but no response received
-        throw new Error('No response from server. Please check if the API is running.');
-      } else {
-        // Something else happened
-        throw new Error(error.message || 'Unknown error occurred');
-      }
-    }
-  );
-  
-  return instance;
-};
-
-// Create API instances
-const mainApi = createApiInstance(API_ENDPOINTS.main);
-const chatbotApi = createApiInstance(API_ENDPOINTS.chatbot);
-const orchestrationApi = createApiInstance(API_ENDPOINTS.orchestration);
-
-// Legacy support - keep main API as default
-const api = mainApi;
+  }
+);
 
 
 
@@ -74,9 +58,14 @@ export const apiService = {
     return response.data;
   },
 
-  // Chat endpoints (using dedicated chatbot API)
+  async getModelInfo() {
+    const response = await api.get('/model/info');
+    return response.data;
+  },
+
+  // Chat endpoints
   async sendChatMessage(query, subreddits = null) {
-    const response = await chatbotApi.post('/chat', {
+    const response = await api.post('/chat', {
       query,
       subreddits
     });
@@ -85,23 +74,23 @@ export const apiService = {
 
   async getChatSuggestions(subreddits = null) {
     const params = subreddits ? { subreddits } : {};
-    const response = await chatbotApi.get('/suggestions', { params });
+    const response = await api.get('/suggestions', { params });
     return response;
   },
 
   async getChatTopics(subreddits = null) {
     const params = subreddits ? { subreddits } : {};
-    const response = await chatbotApi.get('/insights/topics', { params });
+    const response = await api.get('/insights/topics', { params });
     return response;
   },
 
-  // Chatbot API health
+  // Chatbot health
   async getChatbotHealth() {
-    return await chatbotApi.get('/health');
+    return await api.get('/health');
   },
 
   async getChatbotStatus() {
-    return await chatbotApi.get('/status');
+    return await api.get('/status');
   },
 
   // Data Collection endpoints
@@ -171,31 +160,31 @@ export const apiService = {
     return response.data;
   },
 
-  // Orchestration API endpoints
+  // Orchestration endpoints
   async getSchedulerStatus() {
-    return await orchestrationApi.get('/scheduler/status');
+    return await api.get('/scheduler/status');
   },
 
   async listScheduledJobs() {
-    return await orchestrationApi.get('/scheduler/jobs');
+    return await api.get('/scheduler/jobs');
   },
 
   async triggerJob(jobId, parameters = null) {
-    return await orchestrationApi.post('/scheduler/jobs/trigger', {
+    return await api.post('/scheduler/jobs/trigger', {
       job_id: jobId,
       parameters
     });
   },
 
   async manageJob(jobId, action) {
-    return await orchestrationApi.post('/scheduler/jobs/manage', {
+    return await api.post('/scheduler/jobs/manage', {
       job_id: jobId,
       action
     });
   },
 
   async executeWorkflow(workflowType, query = null, subreddits = null, parameters = null) {
-    return await orchestrationApi.post('/workflow/execute', {
+    return await api.post('/workflow/execute', {
       workflow_type: workflowType,
       query,
       subreddits,
@@ -204,24 +193,24 @@ export const apiService = {
   },
 
   async getWorkflowHistory(limit = 10) {
-    return await orchestrationApi.get('/workflow/history', { params: { limit } });
+    return await api.get('/workflow/history', { params: { limit } });
   },
 
   async getSystemHealth() {
-    return await orchestrationApi.get('/system/health');
+    return await api.get('/system/health');
   },
 
   async getMonitoringMetrics() {
-    return await orchestrationApi.get('/monitoring/metrics');
+    return await api.get('/monitoring/metrics');
   },
 
   async updateSchedulerConfig(config) {
-    return await orchestrationApi.post('/scheduler/config', config);
+    return await api.post('/scheduler/config', config);
   },
 
-  // Orchestration API health
+  // Orchestration health
   async getOrchestrationHealth() {
-    return await orchestrationApi.get('/health');
+    return await api.get('/health');
   },
 };
 
