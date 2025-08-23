@@ -34,9 +34,8 @@ def main():
     print("Stopping existing processes...")
     cleanup_processes()
     
-    # Clear vector database completely
-    print("Clearing vector database...")
-    os.system("rm -rf data/vector_db")
+    # Ensure vector database directory exists
+    print("Ensuring vector database directory exists...")
     os.system("mkdir -p data/vector_db")
     
     # Start only the main API first (this will handle vector database initialization)

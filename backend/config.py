@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     sqlite_db_path: str = "./data/insights.db"
     
     # Application Configuration
-    subreddits: str = "MachineLearning,Python,programming,datascience"
+    subreddits: str = "RAG"
     max_posts_per_subreddit: int = 100
     collection_interval_hours: int = 24
     insight_generation_interval_hours: int = 6

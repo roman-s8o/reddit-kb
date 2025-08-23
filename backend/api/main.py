@@ -98,7 +98,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -110,6 +110,11 @@ app.add_middleware(
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
+@app.get("/info", response_model=APIResponse)
+async def get_info():
+    """Get current model information (alias for /model/info)."""
+    return await get_model_info()
 
 @app.get("/model/info", response_model=APIResponse)
 async def get_model_info():
@@ -225,8 +230,8 @@ async def chat_query(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/chat/suggestions", response_model=APIResponse)
-async def get_chat_suggestions(query: Optional[str] = None):
+@app.get("/suggestions", response_model=APIResponse)
+async def get_suggestions(query: Optional[str] = None):
     """Get chat topic suggestions."""
     try:
         if query:

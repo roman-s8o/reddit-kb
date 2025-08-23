@@ -410,7 +410,7 @@ class RedditWorkflow:
                 },
                 "preprocessor": {
                     "status": "ready",
-                    "chroma_connected": self.preprocessor.collection is not None,
+                    "vector_db_connected": True,
                     "collection_stats": self.preprocessor.get_collection_stats()
                 },
                 "insight_agent": {

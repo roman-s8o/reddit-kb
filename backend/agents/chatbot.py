@@ -549,32 +549,16 @@ Keep the response concise and factual."""
     def get_chat_statistics(self) -> Dict[str, Any]:
         """Get statistics about the chatbot's knowledge base."""
         try:
-            if not self.collection:
-                return {"error": "Collection not initialized"}
+            from utils.faiss_manager import faiss_manager
             
-            # Get collection stats
-            total_docs = self.collection.count()
+            # Get FAISS stats
+            stats = faiss_manager.get_stats()
             
-            if total_docs > 0:
-                # Sample some documents to get distribution info
-                sample_size = min(100, total_docs)
-                results = self.collection.get(limit=sample_size)
-                
-                subreddit_counts = {}
-                type_counts = {}
-                
-                for metadata in results["metadatas"]:
-                    subreddit = metadata.get("subreddit", "unknown")
-                    doc_type = metadata.get("type", "unknown")
-                    
-                    subreddit_counts[subreddit] = subreddit_counts.get(subreddit, 0) + 1
-                    type_counts[doc_type] = type_counts.get(doc_type, 0) + 1
-                
+            if stats["total_documents"] > 0:
                 return {
-                    "total_documents": total_docs,
-                    "sample_size": sample_size,
-                    "subreddit_distribution": subreddit_counts,
-                    "document_type_distribution": type_counts,
+                    "total_documents": stats["total_documents"],
+                    "dimension": stats["dimension"],
+                    "is_trained": stats["is_trained"],
                     "status": "ready"
                 }
             else:

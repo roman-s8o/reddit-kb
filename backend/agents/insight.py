@@ -156,11 +156,11 @@ class InsightAgent:
                 cursor = conn.execute("""
                     SELECT * FROM insights 
                     ORDER BY timestamp DESC 
-                    LIMIT ?
-                """, (limit,))
-                
-                results = []
-                for row in cursor.fetchall():
+                LIMIT ?
+            """, (limit,))
+            
+            results = []
+            for row in cursor.fetchall():
                     insight_dict = {
                         "id": row[0],
                         "timestamp": row[1],
@@ -173,8 +173,8 @@ class InsightAgent:
                     }
                     results.append(insight_dict)
                 
-                return results
-                
+            return results
+            
         except Exception as e:
             logger.error(f"Error getting latest insights: {e}")
             return []

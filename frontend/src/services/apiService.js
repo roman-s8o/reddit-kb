@@ -59,7 +59,7 @@ export const apiService = {
   },
 
   async getModelInfo() {
-    const response = await api.get('/model/info');
+    const response = await api.get('/info');
     return response.data;
   },
 
@@ -69,7 +69,7 @@ export const apiService = {
       query,
       subreddits
     });
-    return response;
+    return response.data;
   },
 
   async getChatSuggestions(subreddits = null) {

@@ -115,9 +115,9 @@ const ChatInterface = ({ systemStatus }) => {
         const botMessage = {
           id: Date.now() + 1,
           type: 'bot',
-          content: result.data.answer,
+          content: result.data.response,
           timestamp: result.data.timestamp,
-          sources: result.data.references || [],
+          sources: result.data.sources || [],
           insights: result.data.insights || [],
           confidence: result.data.confidence
         };
